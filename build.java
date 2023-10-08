@@ -1,28 +1,17 @@
 
 import java.io.FileOutputStream;
+import java.io.File;
+// import java.nio.*;
 
 class build 
 {
-    public static void main(String[] args) 
-    {
-        if (args.length == 0) {
-            System.out.println("missing build target!");
-            System.exit(1);
-        }
-
-        var target = args[0];
-        System.out.println("build target: " + target);
-        String[] buildArgs = {
-            "javac", target
-        };
-
-        var processBuilder = new ProcessBuilder(buildArgs);
+    static void runCommand(String[] args) {
+        var processBuilder = new ProcessBuilder(args);
         processBuilder.inheritIO();
-        Process process;
 
         try 
         {
-            process = processBuilder.start();
+            var process = processBuilder.start();
             process.waitFor();
 
             int exit = process.exitValue();
@@ -36,13 +25,40 @@ class build
             e.printStackTrace();
             System.exit(1);
         }
-        System.out.println(".class created");
+
+    }
+
+    public static void main(String[] args) 
+    {
+        if (args.length == 0) {
+            System.err.println("missing build target!");
+            System.exit(1);
+        }
+
+        var target = new File(args[0]);
+        var workingDir = target.getParent() + File.separator;
+
+        if (!target.exists()) {
+            System.err.println(target + " file does not exist.");
+            System.exit(1);
+        }
+
+        System.out.println("build target: " + target);
+        String[] buildArgs = {
+            "javac", target.toString()
+        };
+
+        runCommand(buildArgs);
+        System.out.println(".class created.");
 
         try 
         {
             final var manifest = 
                 "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: Test\n";
-            FileOutputStream outputStream = new FileOutputStream("test/MANIFEST.MF");
+            FileOutputStream outputStream = 
+                new FileOutputStream(
+                        workingDir + "MANIFEST.MF"
+                        );
             outputStream.write(manifest.getBytes());
             outputStream.close();
         } 
@@ -54,29 +70,13 @@ class build
 
         System.out.println("creating jar...");
         String[] jarArgs = {
-            "jar", "cvfm", "test/out.jar", "test/MANIFEST.MF", "test/."
+            "jar", "cvfm", 
+            workingDir + "out.jar", 
+            workingDir + "MANIFEST.MF", 
+            workingDir 
         };
 
-        var pb = new ProcessBuilder(jarArgs);
-        pb.inheritIO();
-
-        try 
-        {
-            process = pb.start();
-            process.waitFor();
-
-            int exit = process.exitValue();
-
-            if (exit != 0) 
-                System.exit(exit);
-
-            System.out.println("success!");
-        } 
-        catch (Exception e) 
-        {
-            e.printStackTrace();
-            System.exit(1);
-        }
-
+        runCommand(jarArgs);
+        System.out.println("success!");
     }
 }
