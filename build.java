@@ -2,10 +2,20 @@
 import java.io.FileOutputStream;
 import java.io.File;
 import java.util.ArrayList;
+import java.io.FileReader;
+import java.io.BufferedReader;
+import java.net.http.HttpRequest;
+import java.net.http.HttpClient;
+import java.net.http.HttpResponse;
+import java.net.http.HttpResponse.BodyHandlers;
+import java.net.URI;
+import java.nio.file.Paths;
+
 
 class build 
 {
-    static void runCommand(String[] args, boolean inheritIO) {
+    static void runCommand(String[] args, boolean inheritIO) 
+    {
         var processBuilder = new ProcessBuilder(args);
         if (inheritIO)
             processBuilder.inheritIO();
@@ -19,7 +29,6 @@ class build
 
             if (exit != 0) 
                 System.exit(exit);
-
         } 
         catch (Exception e) 
         {
@@ -45,6 +54,47 @@ class build
             System.err.println(target + " file does not exist.");
             System.exit(1);
         }
+
+        var dependencies = new ArrayList<String>();
+        try 
+        {
+            var filereader = new FileReader(target);
+            var br = new BufferedReader(filereader);
+            String line;
+
+            while ((line = br.readLine()) != null) 
+            {
+                line = line.trim();
+                if (line.startsWith("// SJBT: @dependency "))
+                {
+                    System.out.println(line.substring(21));
+                    dependencies.add(line.substring(21));
+                }
+            }
+        } 
+        catch (Exception e) 
+        {
+            e.printStackTrace();
+            System.exit(1);
+        }
+
+        try 
+        {
+            var client = HttpClient.newHttpClient();
+            for (var url : dependencies) {
+                var request = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .build();
+                System.out.println("downloading dependency: " + url);
+                client.send(request, BodyHandlers.ofFile(Paths.get(workingDir + "dependencies.jar")));
+            }
+        }
+        catch (Exception e) 
+        {
+            e.printStackTrace();
+            System.exit(1);
+        }
+
 
         // compilar codigo fonte para arquivos de classes
         // System.out.println("build target: " + target);
@@ -77,8 +127,10 @@ class build
             System.exit(1);
         }
 
-        for (var i : new File(workingDir).list()) {
-            if (i.endsWith(".class")) {
+        for (var i : new File(workingDir).list()) 
+        {
+            if (i.endsWith(".class")) 
+            {
                 jarFiles.add(workingDir + i);
             }
         }
