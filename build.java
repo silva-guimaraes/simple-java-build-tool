@@ -2,13 +2,13 @@
 import java.io.FileOutputStream;
 import java.io.File;
 import java.util.ArrayList;
-// import java.nio.*;
 
 class build 
 {
-    static void runCommand(String[] args) {
+    static void runCommand(String[] args, boolean inheritIO) {
         var processBuilder = new ProcessBuilder(args);
-        processBuilder.inheritIO();
+        if (inheritIO)
+            processBuilder.inheritIO();
 
         try 
         {
@@ -46,20 +46,22 @@ class build
             System.exit(1);
         }
 
-        System.out.println("build target: " + target);
+        // compilar codigo fonte para arquivos de classes
+        // System.out.println("build target: " + target);
         String[] buildArgs = {
             "javac", target.toString()
         };
 
-        runCommand(buildArgs);
-        System.out.println(".class created.");
+        runCommand(buildArgs, true);
+        // System.out.println(".class created.");
 
+        // transformar arquivos de classes em um .jar 
         ArrayList<String> jarFiles = new ArrayList<String>();
 
+        var mainClass = target.getName().split("\\.")[0];
         try 
         {
-            var mainClass = target.getName().split("\\.")[0];
-            System.out.println("main class: " + mainClass);
+            // cria um MANIFEST temporário para ser adicionado ao .jar
             final var manifest = 
                 "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
             var manifestFilename = workingDir + "___manifest___";
@@ -84,11 +86,9 @@ class build
         ArrayList<String> jarArgs = new ArrayList<String>();
         jarArgs.add("jar");
         jarArgs.add("cvfm");
-        jarArgs.add(workingDir + "out.jar");
+        jarArgs.add(workingDir + mainClass + ".jar");
         jarArgs.addAll(jarFiles);
 
-        System.out.println("creating jar...");
-        runCommand(jarArgs.toArray(new String[0]));
-        System.out.println("success!");
+        runCommand(jarArgs.toArray(new String[0]), false);
     }
 }
