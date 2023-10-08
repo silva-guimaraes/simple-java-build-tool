@@ -58,8 +58,10 @@ class build
 
         try 
         {
+            var mainClass = target.getName().split("\\.")[0];
+            System.out.println("main class: " + mainClass);
             final var manifest = 
-                "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: Test\n";
+                "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
             var manifestFilename = workingDir + "MANIFEST.MF";
             FileOutputStream outputStream = new FileOutputStream(manifestFilename);
             outputStream.write(manifest.getBytes());
