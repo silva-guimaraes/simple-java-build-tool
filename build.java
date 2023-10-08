@@ -62,11 +62,12 @@ class build
             System.out.println("main class: " + mainClass);
             final var manifest = 
                 "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
-            var manifestFilename = workingDir + "MANIFEST.MF";
+            var manifestFilename = workingDir + "___manifest___";
             FileOutputStream outputStream = new FileOutputStream(manifestFilename);
             outputStream.write(manifest.getBytes());
             outputStream.close();
             jarFiles.add(manifestFilename);
+            new File(manifestFilename).deleteOnExit();
         } 
         catch (Exception e) 
         {
