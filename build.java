@@ -1,6 +1,7 @@
 
 import java.io.FileOutputStream;
 import java.io.File;
+import java.util.ArrayList;
 // import java.nio.*;
 
 class build 
@@ -36,7 +37,9 @@ class build
         }
 
         var target = new File(args[0]);
-        var workingDir = target.getParent() + File.separator;
+        var parent = target.getParent() == null ? "." : target.getParent();
+        var workingDir = parent + File.separator;
+        // System.out.println(parent);
 
         if (!target.exists()) {
             System.err.println(target + " file does not exist.");
@@ -51,16 +54,17 @@ class build
         runCommand(buildArgs);
         System.out.println(".class created.");
 
+        ArrayList<String> jarFiles = new ArrayList<String>();
+
         try 
         {
             final var manifest = 
                 "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: Test\n";
-            FileOutputStream outputStream = 
-                new FileOutputStream(
-                        workingDir + "MANIFEST.MF"
-                        );
+            var manifestFilename = workingDir + "MANIFEST.MF";
+            FileOutputStream outputStream = new FileOutputStream(manifestFilename);
             outputStream.write(manifest.getBytes());
             outputStream.close();
+            jarFiles.add(manifestFilename);
         } 
         catch (Exception e) 
         {
@@ -68,15 +72,20 @@ class build
             System.exit(1);
         }
 
-        System.out.println("creating jar...");
-        String[] jarArgs = {
-            "jar", "cvfm", 
-            workingDir + "out.jar", 
-            workingDir + "MANIFEST.MF", 
-            workingDir 
-        };
+        for (var i : new File(workingDir).list()) {
+            if (i.endsWith(".class")) {
+                jarFiles.add(workingDir + i);
+            }
+        }
 
-        runCommand(jarArgs);
+        ArrayList<String> jarArgs = new ArrayList<String>();
+        jarArgs.add("jar");
+        jarArgs.add("cvfm");
+        jarArgs.add(workingDir + "out.jar");
+        jarArgs.addAll(jarFiles);
+
+        System.out.println("creating jar...");
+        runCommand(jarArgs.toArray(new String[0]));
         System.out.println("success!");
     }
 }
