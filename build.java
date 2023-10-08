@@ -12,6 +12,20 @@ import java.net.URI;
 import java.nio.file.Paths;
 
 
+class Dependency {
+    public String url;
+    public String filename;
+
+    Dependency(String url) {
+        this.url = url;
+        this.filename = new File(url).getName();
+    }
+
+    public String toString() {
+        return url;
+    }
+}
+
 class build 
 {
     static void runCommand(String[] args, boolean inheritIO) 
@@ -55,7 +69,7 @@ class build
             System.exit(1);
         }
 
-        var dependencies = new ArrayList<String>();
+        var dependencies = new ArrayList<Dependency>();
         try 
         {
             var filereader = new FileReader(target);
@@ -67,8 +81,7 @@ class build
                 line = line.trim();
                 if (line.startsWith("// SJBT: @dependency "))
                 {
-                    System.out.println(line.substring(21));
-                    dependencies.add(line.substring(21));
+                    dependencies.add(new Dependency(line.substring(21)));
                 }
             }
         } 
@@ -78,21 +91,32 @@ class build
             System.exit(1);
         }
 
-        try 
-        {
-            var client = HttpClient.newHttpClient();
-            for (var url : dependencies) {
-                var request = HttpRequest.newBuilder()
-                    .uri(URI.create(url))
-                    .build();
-                System.out.println("downloading dependency: " + url);
-                client.send(request, BodyHandlers.ofFile(Paths.get(workingDir + "dependencies.jar")));
+        if (dependencies.size() > 0) {
+            var buildDir = new File(workingDir + "build");
+            buildDir.mkdir();
+            // buildDir.deleteOnExit();
+            try 
+            {
+                var client = HttpClient.newHttpClient();
+
+                for (Dependency dependency : dependencies) {
+                    var path = buildDir.toString() + File.separator + dependency.filename;
+
+                    var request = HttpRequest.newBuilder()
+                        .uri(URI.create(dependency.url))
+                        .build();
+                    System.out.println("downloading dependency: " + dependency.url);
+
+                    System.out.println("path: " + path);
+                    client.send(request, 
+                            BodyHandlers.ofFile(Paths.get(path)));
+                }
             }
-        }
-        catch (Exception e) 
-        {
-            e.printStackTrace();
-            System.exit(1);
+            catch (Exception e) 
+            {
+                e.printStackTrace();
+                System.exit(1);
+            }
         }
 
 
