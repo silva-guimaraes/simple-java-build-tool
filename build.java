@@ -11,15 +11,17 @@ import java.net.http.HttpResponse;
 import java.net.http.HttpResponse.BodyHandlers;
 import java.net.URI;
 import java.nio.file.Paths;
+import java.nio.file.Path;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 
 class Dependency {
     public String url;
     public String filename;
-    public String path;
+    public Path path;
 
     Dependency(String url) {
         this.url = url;
@@ -28,6 +30,10 @@ class Dependency {
 
     public String toString() {
         return url;
+    }
+
+    public Path getPath() {
+        return this.path;
     }
 }
 
@@ -141,6 +147,10 @@ class build
             System.exit(1);
         }
 
+        ArrayList<String> buildArgs = new ArrayList<String>();
+        buildArgs.add("javac");
+        buildArgs.add(target.toString());
+
         if (dependencies.size() > 0) {
             var buildDir = new File(workingDir + "build");
             buildDir.mkdir();
@@ -149,9 +159,9 @@ class build
                 var client = HttpClient.newHttpClient();
 
                 for (Dependency dependency : dependencies) {
-                    var path = buildDir.toString() + File.separator + dependency.filename;
+                    var path = Paths.get(buildDir.toString(), dependency.filename);
 
-                    if (new File(path).exists())
+                    if (path.toFile().exists())
                         continue;
 
                     var request = HttpRequest.newBuilder()
@@ -159,28 +169,26 @@ class build
                         .build();
                     System.out.println("downloading dependency: " + dependency.url);
 
-                    System.out.println("path: "  + path);
-                    client.send(request, 
-                            BodyHandlers.ofFile(Paths.get(path)));
+                    client.send(request, BodyHandlers.ofFile(path));
+
                     dependency.path = path;
 
-                    unzipFile(path, buildDir.toString());
+                    unzipFile(path.toString(), buildDir.toString());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
                 System.exit(1);
             }
+            buildArgs.add("-cp");
+            buildArgs.add(
+                    dependencies.stream()
+                    .map(Dependency :: getPath)
+                    .map(Path :: toString)
+                    .collect(Collectors.joining(":"))
+                    );
         }
 
-
-        // compilar codigo fonte para arquivos de classes
-        // System.out.println("build target: " + target);
-        String[] buildArgs = {
-            "javac", target.toString()
-        };
-
-        runCommand(buildArgs, true);
-        // System.out.println(".class created.");
+        runCommand(buildArgs.toArray(new String[0]), true);
 
         // transformar arquivos de classes em um .jar 
         ArrayList<String> jarFiles = new ArrayList<String>();
@@ -199,17 +207,15 @@ class build
             outputStream.write(manifest.getBytes());
             outputStream.close();
 
-            jarFiles.add(manifestFilename);
+            jarFiles.add(manifestFilename.toString());
 
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
         }
 
-        for (var i : new File(workingDir).list()) 
-        {
-            if (i.endsWith(".class")) 
-            {
+        for (var i : new File(workingDir).list()) {
+            if (i.endsWith(".class")) {
                 jarFiles.add(workingDir + i);
             }
         }
