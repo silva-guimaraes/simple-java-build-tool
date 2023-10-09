@@ -1,7 +1,9 @@
 
 import java.io.FileOutputStream;
 import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.List;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -16,6 +18,7 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.ZipEntry;
 import java.io.IOException;
 import java.util.stream.Collectors;
+import java.nio.file.StandardCopyOption;
 
 
 class Dependency {
@@ -39,6 +42,19 @@ class Dependency {
 
 class build 
 {
+    public static Path moveFile(Path source, Path buildDir) {
+        Path target = Paths.get("null");
+        try {
+            target = Files.move(source, Paths.get(buildDir.toString(), 
+                        source.toFile().getName()), 
+                        StandardCopyOption.REPLACE_EXISTING
+                    );
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        return target;
+    } 
     public static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
         File destFile = new File(destinationDir, zipEntry.getName());
 
@@ -121,8 +137,7 @@ class build
 
         var target = new File(args[0]);
         var parent = target.getParent() == null ? "." : target.getParent();
-        var workingDir = parent + File.separator;
-        // System.out.println(parent);
+        var workingDir = Paths.get(parent);
 
         if (!target.exists()) {
             System.err.println(target + " file does not exist.");
@@ -151,9 +166,9 @@ class build
         buildArgs.add("javac");
         buildArgs.add(target.toString());
 
+        var buildDir = Paths.get(workingDir.toString(), "build");
         if (dependencies.size() > 0) {
-            var buildDir = new File(workingDir + "build");
-            buildDir.mkdir();
+            buildDir.toFile().mkdir();
             // buildDir.deleteOnExit();
             try {
                 var client = HttpClient.newHttpClient();
@@ -190,20 +205,19 @@ class build
 
         runCommand(buildArgs.toArray(new String[0]), true);
 
-        // transformar arquivos de classes em um .jar 
         ArrayList<String> jarFiles = new ArrayList<String>();
 
         var mainClass = target.getName().split("\\.")[0];
 
         try { // cria um MANIFEST temporário para ser adicionado ao .jar
-
             final var manifest = 
                 "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
 
-            var manifestFilename = new File(workingDir + "___manifest___");
-            manifestFilename.deleteOnExit();
+            var manifestFilename = Paths.get(workingDir.toString(), "___manifest___");
+            manifestFilename.toFile().deleteOnExit();
 
-            FileOutputStream outputStream = new FileOutputStream(manifestFilename);
+            FileOutputStream outputStream = 
+                new FileOutputStream(manifestFilename.toFile());
             outputStream.write(manifest.getBytes());
             outputStream.close();
 
@@ -214,16 +228,33 @@ class build
             System.exit(1);
         }
 
-        for (var i : new File(workingDir).list()) {
-            if (i.endsWith(".class")) {
-                jarFiles.add(workingDir + i);
+        try {
+            if (dependencies.size() > 0) {
+                // mover todos os arquivos .class para a pasta build para que
+                // possam ser incluidos dentro do jar junto com todas as dependencias
+                Files.list(workingDir)
+                    .filter(x -> x.toString().endsWith(".class"))
+                    .forEach(x -> moveFile(x, buildDir));
+                // incluir todos os arquivos dentro da pasta build 
+                // (nosso programa e dependencias)
+                jarFiles.add(buildDir.toString());
+            } else {
+                // adicionar apenas arquivos .class ao jar
+                jarFiles.addAll(Files.list(workingDir)
+                        .map(Path :: toString)
+                        .filter(x -> x.endsWith(".class"))
+                        .collect(Collectors.toList())
+                        );
             }
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
         }
 
         ArrayList<String> jarArgs = new ArrayList<String>();
         jarArgs.add("jar");
         jarArgs.add("cvfm");
-        jarArgs.add(workingDir + mainClass + ".jar");
+        jarArgs.add(Paths.get(workingDir.toString(), mainClass + ".jar").toString());
         jarArgs.addAll(jarFiles);
 
         runCommand(jarArgs.toArray(new String[0]), false);
