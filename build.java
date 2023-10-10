@@ -180,7 +180,7 @@ class build
                         continue;
 
                     // baixar dependencias
-                    // System.out.println("downloading dependency: " + dependency.url);
+                    System.out.println("downloading dependency: " + dependency.url);
                     var request = HttpRequest.newBuilder()
                         .uri(URI.create(dependency.url))
                         .build();
@@ -210,6 +210,25 @@ class build
 
         // compilar javac
         runCommand(buildArgs.toArray(new String[0]), Paths.get("."), true);
+
+        try {
+            var dep = dependencies.stream()
+                .map(Dependency :: getPath)
+                .map(Path :: toString)
+                .collect(Collectors.toList());
+            Files.list(buildDir)
+                .map(Path :: toString)
+                .filter(x -> x.endsWith(".jar"))
+                .filter(x -> !dep.contains(x))
+                .map(Paths :: get)
+                .forEach(x -> {
+                    System.out.println("removing unused dependency: " + x);
+                    x.toFile().delete();
+                });
+            
+        } catch (Exception e) {
+            //TODO: handle exception
+        }
 
         var mainClass = target.getName().split("\\.")[0];
 
