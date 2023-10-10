@@ -27,8 +27,19 @@ class Dependency {
     public Path path;
 
     Dependency(String url) {
-        this.url = url;
-        this.filename = new File(url).getName();
+        if (url.startsWith("http")) {
+            this.url = url;
+            this.filename = new File(url).getName();
+            return;
+        }
+        var spec = url.split(":");
+        var packagePath = spec[0].replace('.', '/');
+        var formatted = String.format(
+                "https://repo1.maven.org/maven2/%s/%s/%s/%s-%s.jar",
+                packagePath, spec[1], spec[2], spec[1], spec[2]);
+
+        this.url = formatted;
+        this.filename = new File(formatted).getName();
     }
 
     public String toString() {
@@ -155,7 +166,7 @@ class build
 
         var buildDir = Paths.get("build");
         buildDir.toFile().mkdir();
-        buildDir.toFile().deleteOnExit();
+        // buildDir.toFile().deleteOnExit();
         if (dependencies.size() > 0) {
             try {
                 var client = HttpClient.newHttpClient();
@@ -175,8 +186,8 @@ class build
 
                     dependency.path = path;
 
-                    // remover do zip para que arquivos .class possam ser adicionados
-                    // ao .jar final
+                    // remover do zip para que arquivos .class possam ser 
+                    // adicionados ao .jar final
                     unzipFile(path.toString(), buildDir.toString());
                 }
             } catch (Exception e) {
