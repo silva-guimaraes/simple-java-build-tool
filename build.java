@@ -173,18 +173,19 @@ class build
 
                 for (Dependency dependency : dependencies) {
                     var path = Paths.get(buildDir.toString(), dependency.filename);
+                    dependency.path = path;
 
-                    // if (path.toFile().exists())
-                    //     continue;
+                    // não baixar depencias já instaladas
+                    if (path.toFile().exists())
+                        continue;
 
                     // baixar dependencias
-                    System.out.println("downloading dependency: " + dependency.url);
+                    // System.out.println("downloading dependency: " + dependency.url);
                     var request = HttpRequest.newBuilder()
                         .uri(URI.create(dependency.url))
                         .build();
                     client.send(request, BodyHandlers.ofFile(path));
 
-                    dependency.path = path;
 
                     // remover do zip para que arquivos .class possam ser 
                     // adicionados ao .jar final
