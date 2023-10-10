@@ -42,19 +42,8 @@ class Dependency {
 
 class build 
 {
-    public static Path moveFile(Path source, Path buildDir) {
-        Path target = Paths.get("null");
-        try {
-            target = Files.move(source, Paths.get(buildDir.toString(), 
-                        source.toFile().getName()), 
-                        StandardCopyOption.REPLACE_EXISTING
-                    );
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
-        return target;
-    } 
+    Path pwd;
+
     public static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
         File destFile = new File(destinationDir, zipEntry.getName());
 
@@ -104,14 +93,15 @@ class build
         zis.close();
     }
 
-    static void runCommand(String[] args, boolean inheritIO) 
+    static void runCommand(String[] args, Path pwd, boolean inheritIO) 
     {
         var processBuilder = new ProcessBuilder(args);
         if (inheritIO)
             processBuilder.inheritIO();
 
-        try 
-        {
+        processBuilder.directory(pwd.toFile());
+
+        try {
             var process = processBuilder.start();
             process.waitFor();
 
@@ -119,9 +109,7 @@ class build
 
             if (exit != 0) 
                 System.exit(exit);
-        } 
-        catch (Exception e) 
-        {
+        } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
         }
@@ -136,8 +124,8 @@ class build
         }
 
         var target = new File(args[0]);
-        var parent = target.getParent() == null ? "." : target.getParent();
-        var workingDir = Paths.get(parent);
+        // var parent = target.getParent() == null ? "." : target.getParent();
+        // var workingDir = Paths.get(parent);
 
         if (!target.exists()) {
             System.err.println(target + " file does not exist.");
@@ -166,18 +154,18 @@ class build
         buildArgs.add("javac");
         buildArgs.add(target.toString());
 
-        var buildDir = Paths.get(workingDir.toString(), "build");
+        var buildDir = Paths.get("build");
+        buildDir.toFile().mkdir();
+        buildDir.toFile().deleteOnExit();
         if (dependencies.size() > 0) {
-            buildDir.toFile().mkdir();
-            // buildDir.deleteOnExit();
             try {
                 var client = HttpClient.newHttpClient();
 
                 for (Dependency dependency : dependencies) {
                     var path = Paths.get(buildDir.toString(), dependency.filename);
 
-                    if (path.toFile().exists())
-                        continue;
+                    // if (path.toFile().exists())
+                    //     continue;
 
                     var request = HttpRequest.newBuilder()
                         .uri(URI.create(dependency.url))
@@ -203,60 +191,59 @@ class build
                     );
         }
 
-        runCommand(buildArgs.toArray(new String[0]), true);
+        buildArgs.add("-d");
+        buildArgs.add(buildDir.toString());
 
-        ArrayList<String> jarFiles = new ArrayList<String>();
+        runCommand(buildArgs.toArray(new String[0]), Paths.get("."), true);
 
         var mainClass = target.getName().split("\\.")[0];
 
-        try { // cria um MANIFEST temporário para ser adicionado ao .jar
-            final var manifest = 
-                "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
+        // cria um MANIFEST temporário para ser adicionado ao .jar
+        final var manifest = 
+            "Manifest-Version: 1.0\nClass-Path: .\nMain-Class: " + mainClass + "\n";
 
-            var manifestFilename = Paths.get(workingDir.toString(), "___manifest___");
-            manifestFilename.toFile().deleteOnExit();
-
+        var manifestPath = Paths.get(buildDir.toString(), "___manifest___");
+        manifestPath.toFile().deleteOnExit();
+        try { 
             FileOutputStream outputStream = 
-                new FileOutputStream(manifestFilename.toFile());
+                new FileOutputStream(manifestPath.toFile());
             outputStream.write(manifest.getBytes());
             outputStream.close();
-
-            jarFiles.add(manifestFilename.toString());
-
         } catch (Exception e) {
             e.printStackTrace();
             System.exit(1);
         }
 
-        try {
-            if (dependencies.size() > 0) {
-                // mover todos os arquivos .class para a pasta build para que
-                // possam ser incluidos dentro do jar junto com todas as dependencias
-                Files.list(workingDir)
-                    .filter(x -> x.toString().endsWith(".class"))
-                    .forEach(x -> moveFile(x, buildDir));
-                // incluir todos os arquivos dentro da pasta build 
-                // (nosso programa e dependencias)
-                jarFiles.add(buildDir.toString());
-            } else {
-                // adicionar apenas arquivos .class ao jar
-                jarFiles.addAll(Files.list(workingDir)
-                        .map(Path :: toString)
-                        .filter(x -> x.endsWith(".class"))
-                        .collect(Collectors.toList())
-                        );
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-        }
+        // try {
+        //     if (dependencies.size() > 0) {
+        //         // mover todos os arquivos .class para a pasta build para que
+        //         // possam ser incluidos dentro do jar junto com todas as dependencias
+        //         Files.list(workingDir)
+        //             .filter(x -> x.toString().endsWith(".class"))
+        //             .forEach(x -> moveFile(x, buildDir));
+        //         // incluir todos os arquivos dentro da pasta build 
+        //         // (nosso programa e dependencias)
+        //         jarFiles.add(buildDir.toString());
+        //     } else {
+        //         // adicionar apenas arquivos .class ao jar
+        //         jarFiles.addAll(Files.list(workingDir)
+        //                 .map(Path :: toString)
+        //                 .filter(x -> x.endsWith(".class"))
+        //                 .collect(Collectors.toList())
+        //                 );
+        //     }
+        // } catch (Exception e) {
+        //     e.printStackTrace();
+        //     System.exit(1);
+        // }
 
         ArrayList<String> jarArgs = new ArrayList<String>();
         jarArgs.add("jar");
         jarArgs.add("cvfm");
-        jarArgs.add(Paths.get(workingDir.toString(), mainClass + ".jar").toString());
-        jarArgs.addAll(jarFiles);
+        jarArgs.add(Paths.get("..", mainClass + ".jar").toString());
+        jarArgs.add("___manifest___");
+        jarArgs.add(".");
 
-        runCommand(jarArgs.toArray(new String[0]), false);
+        runCommand(jarArgs.toArray(new String[0]), buildDir, false);
     }
 }
