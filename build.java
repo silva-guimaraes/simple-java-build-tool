@@ -4,6 +4,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -53,19 +54,51 @@ class Dependency {
 
 class build 
 {
+    public static void cleanDependency(Path jar, String buildDir) {
+        System.out.println("cleaning dependency: " + jar);
+        try {
+            File destDir = new File(buildDir);
 
-    public static File newFile(File destinationDir, ZipEntry zipEntry) throws IOException {
-        File destFile = new File(destinationDir, zipEntry.getName());
+            ZipInputStream zis = new ZipInputStream(
+                    new FileInputStream(jar.toFile()));
+            ZipEntry zipEntry;
+            ArrayList<File> entries = new ArrayList<File>();
 
-        String destDirPath = destinationDir.getCanonicalPath();
-        String destFilePath = destFile.getCanonicalPath();
+            while ((zipEntry = zis.getNextEntry()) != null) 
+            {
+                entries.add(newFile(destDir, zipEntry));
+            }
+            Collections.reverse(entries);
+            entries.stream().forEach(File :: delete);
 
-        if (!destFilePath.startsWith(destDirPath + File.separator)) {
-            throw new IOException("Entry is outside of the target dir: " + 
-                    zipEntry.getName());
+            jar.toFile().delete();
+
+            zis.closeEntry();
+            zis.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
         }
+    }
+    public static File newFile(File destinationDir, ZipEntry zipEntry) {
+        try {
+            File destFile = new File(destinationDir, zipEntry.getName());
 
-        return destFile;
+            String destDirPath = destinationDir.getCanonicalPath();
+            String destFilePath = destFile.getCanonicalPath();
+
+            if (!destFilePath.startsWith(destDirPath + File.separator)) {
+                throw new IOException("Entry is outside of the target dir: " + 
+                        zipEntry.getName());
+            }
+
+            return destFile;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+        }
+        // !!!!
+        return new File("null");
     }
     // https://www.baeldung.com/java-compress-and-uncompress
     public static void unzipFile(String zipPath, String buildDir) throws IOException {
@@ -74,8 +107,8 @@ class build
 
         byte[] buffer = new byte[1024];
         ZipInputStream zis = new ZipInputStream(new FileInputStream(zipPath));
-        ZipEntry zipEntry = zis.getNextEntry();
-        while (zipEntry != null) 
+        ZipEntry zipEntry;
+        while ((zipEntry = zis.getNextEntry()) != null) 
         {
             File newFile = newFile(destDir, zipEntry);
             if (zipEntry.isDirectory()) {
@@ -97,7 +130,6 @@ class build
                 }
                 fos.close();
             }
-            zipEntry = zis.getNextEntry();
         }
         zis.closeEntry();
         zis.close();
@@ -221,10 +253,7 @@ class build
                 .filter(x -> x.endsWith(".jar"))
                 .filter(x -> !dep.contains(x))
                 .map(Paths :: get)
-                .forEach(x -> {
-                    System.out.println("removing unused dependency: " + x);
-                    x.toFile().delete();
-                });
+                .forEach(x -> cleanDependency(x, buildDir.toString()));
             
         } catch (Exception e) {
             //TODO: handle exception
