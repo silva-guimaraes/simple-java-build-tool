@@ -39,11 +39,6 @@ class Test {
         try {
             var doc = Jsoup.connect("https://example.com").get();
             System.out.println(doc.title());
-            var newsHeadlines = doc.select("#mp-itn b a");
-            for (var headline : newsHeadlines) {
-                System.out.printf("%s\n\t%s", 
-                        headline.attr("title"), headline.absUrl("href"));
-            }
         } catch (Exception e) {
             e.printStackTrace();
         }
